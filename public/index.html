@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flavor Table - Discover Amazing Recipes</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'><text y=\'.9em\' font-size=\'90\'>🍽️</text></svg>">
+</head>
+<body>
+    <header>
+        <h1>🍽️ Flavor Table</h1>
+        <nav>
+            <ul>
+                <li><a href="#" id="search-recipes-link" class="active">🔍 Search Recipes</a></li>
+                <li><a href="#" id="random-recipe-link">🎲 Random Recipe</a></li>
+                <li><a href="#" id="favorites-link">❤️ Favorites</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <!-- Search Recipes Section -->
+        <section id="search-section">
+            <h2>🔍 Search Recipes by Ingredients</h2>
+            <div class="search-container">
+                <input type="text" id="ingredients-input" placeholder="Enter ingredients (e.g., chicken, rice, tomato )">
+                <button id="search-button">Search Recipes</button>
+            </div>
+            <div id="search-results"></div>
+        </section>
+
+        <!-- Random Recipe Section -->
+        <section id="random-section" style="display:none;">
+            <h2>🎲 Discover Random Recipe</h2>
+            <div style="text-align: center; margin-bottom: 2rem;">
+                <button id="generate-random-button">Generate Random Recipe</button>
+            </div>
+            <div id="random-recipe-display"></div>
+        </section>
+
+        <!-- Favorites Section -->
+        <section id="favorites-section" style="display:none;">
+            <h2>❤️ Your Favorite Recipes</h2>
+            <div id="favorites-list"></div>
+        </section>
+
+        <!-- Recipe Details Modal -->
+        <div id="recipe-details-modal" class="modal">
+            <div class="modal-content">
+                <span class="close-button">&times;</span>
+                <h2 id="details-title"></h2>
+                <img id="details-image" src="" alt="Recipe Image">
+                <p><strong>📝 Summary:</strong> <span id="details-summary"></span></p>
+                <p><strong>⏱️ Cooking Time:</strong> <span id="details-cooking-time"></span> minutes</p>
+                <h3>📋 Instructions:</h3>
+                <div id="details-instructions"></div>
+                <h3>🥘 Ingredients:</h3>
+                <ul id="details-ingredients"></ul>
+            </div>
+        </div>
+    </main>
+
+    <script src="/app.js"></script>
+</body>
+</html>
