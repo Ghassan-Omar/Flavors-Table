@@ -2,7 +2,7 @@ const express = require("express");
 const axios = require("axios");
 const router = express.Router();
 
-// Get Random Recipe
+// Get Random Recipe (from Spoonacular API)
 router.get("/random", async (req, res) => {
     try {
         // Check if API key is configured
@@ -18,7 +18,7 @@ router.get("/random", async (req, res) => {
                 number: 1
             },
             timeout: 10000 // 10 second timeout
-        } );
+        });
 
         if (!response.data || !response.data.recipes || response.data.recipes.length === 0) {
             return res.status(404).json({ 
@@ -86,7 +86,7 @@ router.get("/random", async (req, res) => {
     }
 });
 
-// Search Recipes by Ingredients
+// Search Recipes by Ingredients (from Spoonacular API)
 router.get("/search", async (req, res) => {
     try {
         const ingredients = req.query.ingredients;
@@ -106,7 +106,7 @@ router.get("/search", async (req, res) => {
         const response = await axios.get("https://api.spoonacular.com/recipes/findByIngredients", {
             params: {
                 apiKey: process.env.SPOONACULAR_API_KEY,
-                ingredients: ingredients.trim( ),
+                ingredients: ingredients.trim(),
                 number: 12,
                 ranking: 1,
                 ignorePantry: true
@@ -163,11 +163,145 @@ router.get("/search", async (req, res) => {
     }
 });
 
-// Get Recipe Information by ID
+// CRUD Operations for PostgreSQL Database
+
+// GET /api/recipes - Get all favorite recipes from database
+router.get("/all", async (req, res) => {
+    try {
+        const pool = req.app.locals.pool;
+        const result = await pool.query("SELECT * FROM recipes ORDER BY id DESC");
+        res.json(result.rows);
+    } catch (error) {
+        console.error("Error fetching recipes from database:", error);
+        res.status(500).json({ 
+            error: "Failed to fetch recipes from database." 
+        });
+    }
+});
+
+// POST /api/recipes - Add a new recipe to database
+router.post("/", async (req, res) => {
+    try {
+        const { title, image, instructions, ingredients, readyIn } = req.body;
+        
+        // Validate required fields
+        if (!title) {
+            return res.status(400).json({ 
+                error: "Title is required." 
+            });
+        }
+
+        const pool = req.app.locals.pool;
+        const result = await pool.query(
+            "INSERT INTO recipes (title, image, instructions, ingredients, readyIn) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+            [title, image || null, instructions || null, JSON.stringify(ingredients) || null, readyIn || null]
+        );
+
+        res.status(201).json(result.rows[0]);
+    } catch (error) {
+        console.error("Error adding recipe to database:", error);
+        res.status(500).json({ 
+            error: "Failed to add recipe to database." 
+        });
+    }
+});
+
+// PUT /api/recipes/:id - Update a recipe in database
+router.put("/:id", async (req, res) => {
+    try {
+        const recipeId = parseInt(req.params.id);
+        const { title, image, instructions, ingredients, readyIn } = req.body;
+        
+        // Validate recipe ID
+        if (isNaN(recipeId)) {
+            return res.status(400).json({ 
+                error: "Valid recipe ID is required." 
+            });
+        }
+
+        // Validate required fields
+        if (!title) {
+            return res.status(400).json({ 
+                error: "Title is required." 
+            });
+        }
+
+        const pool = req.app.locals.pool;
+        const result = await pool.query(
+            "UPDATE recipes SET title = $1, image = $2, instructions = $3, ingredients = $4, readyIn = $5 WHERE id = $6 RETURNING *",
+            [title, image || null, instructions || null, JSON.stringify(ingredients) || null, readyIn || null, recipeId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ 
+                error: "Recipe not found." 
+            });
+        }
+
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error("Error updating recipe in database:", error);
+        res.status(500).json({ 
+            error: "Failed to update recipe in database." 
+        });
+    }
+});
+
+// DELETE /api/recipes/:id - Delete a recipe from database
+router.delete("/:id", async (req, res) => {
+    try {
+        const recipeId = parseInt(req.params.id);
+        
+        // Validate recipe ID
+        if (isNaN(recipeId)) {
+            return res.status(400).json({ 
+                error: "Valid recipe ID is required." 
+            });
+        }
+
+        const pool = req.app.locals.pool;
+        const result = await pool.query("DELETE FROM recipes WHERE id = $1 RETURNING *", [recipeId]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ 
+                error: "Recipe not found." 
+            });
+        }
+
+        res.json({ 
+            message: "Recipe deleted successfully.", 
+            deletedRecipe: result.rows[0] 
+        });
+    } catch (error) {
+        console.error("Error deleting recipe from database:", error);
+        res.status(500).json({ 
+            error: "Failed to delete recipe from database." 
+        });
+    }
+});
+
+// Get Recipe Information by ID (from Spoonacular API - for detailed view)
 router.get("/:id", async (req, res) => {
     try {
         const recipeId = req.params.id;
         
+        // Check if this is a database ID (integer) or Spoonacular ID
+        if (!isNaN(recipeId)) {
+            // Try to get from database first
+            const pool = req.app.locals.pool;
+            const dbResult = await pool.query("SELECT * FROM recipes WHERE id = $1", [parseInt(recipeId)]);
+            
+            if (dbResult.rows.length > 0) {
+                const recipe = dbResult.rows[0];
+                // Parse ingredients JSON back to array
+                if (recipe.ingredients) {
+                    recipe.ingredients = JSON.parse(recipe.ingredients);
+                }
+                return res.json(recipe);
+            }
+        }
+        
+        // If not found in database or not a valid database ID, try Spoonacular API
         // Validate recipe ID
         if (!recipeId || isNaN(recipeId)) {
             return res.status(400).json({ 
@@ -188,7 +322,7 @@ router.get("/:id", async (req, res) => {
                 includeNutrition: false
             },
             timeout: 10000 // 10 second timeout
-        } );
+        });
 
         if (!response.data) {
             return res.status(404).json({ 
@@ -258,3 +392,4 @@ router.get("/:id", async (req, res) => {
 });
 
 module.exports = router;
+

@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" );
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
 
 * {
     margin: 0;
@@ -387,3 +387,92 @@ button:hover {
     font-size: 1.1rem;
     line-height: 1.6;
 }
+
+/* Form Styles */
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: #333;
+}
+
+.form-group input,
+.form-group textarea {
+    width: 100%;
+    padding: 0.8rem;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-family: 'Poppins', sans-serif;
+    transition: border-color 0.3s ease;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: #ff6b35;
+    box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.1);
+}
+
+.form-group textarea {
+    resize: vertical;
+    min-height: 100px;
+}
+
+.form-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+    margin-top: 2rem;
+}
+
+.form-actions button {
+    padding: 0.8rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: 'Poppins', sans-serif;
+}
+
+.form-actions button[type="submit"] {
+    background: linear-gradient(45deg, #28a745, #20c997);
+    color: white;
+    box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+}
+
+.form-actions button[type="submit"]:hover {
+    background: linear-gradient(45deg, #20c997, #28a745);
+    box-shadow: 0 6px 20px rgba(40, 167, 69, 0.5);
+    transform: translateY(-2px);
+}
+
+.form-actions button[type="button"] {
+    background: linear-gradient(45deg, #6c757d, #5a6268);
+    color: white;
+    box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);
+}
+
+.form-actions button[type="button"]:hover {
+    background: linear-gradient(45deg, #5a6268, #6c757d);
+    box-shadow: 0 6px 20px rgba(108, 117, 125, 0.5);
+    transform: translateY(-2px);
+}
+
+/* Edit Button Styles */
+.edit-recipe-button {
+    background: linear-gradient(45deg, #ffc107, #e0a800) !important;
+    box-shadow: 0 4px 15px rgba(255, 193, 7, 0.3) !important;
+}
+
+.edit-recipe-button:hover {
+    background: linear-gradient(45deg, #e0a800, #ffc107) !important;
+    box-shadow: 0 6px 20px rgba(255, 193, 7, 0.5) !important;
+}
+
