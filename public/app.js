@@ -121,9 +121,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     favoritesLink.addEventListener("click", (e) => {
         e.preventDefault();
-        showSection(favoritesSection);
-        favoritesLink.classList.add("active");
-        displayFavorites();
+        window.location.href = "/favorites.html";
     });
 
     // Search Recipes Functionality
@@ -218,25 +216,58 @@ document.addEventListener("DOMContentLoaded", () => {
             const recipeTitle = e.target.dataset.title;
             const recipeImage = e.target.dataset.image;
             
-            let favorites = JSON.parse(localStorage.getItem("favoriteRecipes")) || [];
-            
-            if (!favorites.some(fav => fav.id === recipeId)) {
-                favorites.push({ 
-                    id: recipeId, 
-                    title: recipeTitle, 
-                    image: recipeImage 
+            try {
+                e.target.innerHTML = "💾 Saving...";
+                e.target.disabled = true;
+                
+                // Get full recipe details first
+                const response = await fetch(`/recipes/${recipeId}`);
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch recipe details`);
+                }
+                
+                const recipeDetails = await response.json();
+                
+                // Save to database
+                const saveResponse = await fetch("/recipes", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        title: recipeDetails.title,
+                        image: recipeDetails.image,
+                        instructions: recipeDetails.instructions,
+                        ingredients: recipeDetails.extendedIngredients ? 
+                            recipeDetails.extendedIngredients.map(ing => ing.original) : 
+                            recipeDetails.ingredients || [],
+                        readyIn: recipeDetails.readyInMinutes || recipeDetails.readyin
+                    })
                 });
-                localStorage.setItem("favoriteRecipes", JSON.stringify(favorites));
+                
+                if (!saveResponse.ok) {
+                    throw new Error(`Failed to save recipe`);
+                }
                 
                 // Visual feedback
-                e.target.innerHTML = "✅ Added!";
+                e.target.innerHTML = "✅ Saved!";
                 e.target.style.background = "linear-gradient(45deg, #28a745, #20c997)";
                 setTimeout(() => {
                     e.target.innerHTML = "❤️ Save to Favorites";
                     e.target.style.background = "";
+                    e.target.disabled = false;
                 }, 2000);
-            } else {
-                alert(`${recipeTitle} is already in your favorites.`);
+                
+            } catch (error) {
+                console.error("Error saving recipe:", error);
+                e.target.innerHTML = "❌ Failed";
+                e.target.style.background = "linear-gradient(45deg, #dc3545, #c82333)";
+                setTimeout(() => {
+                    e.target.innerHTML = "❤️ Save to Favorites";
+                    e.target.style.background = "";
+                    e.target.disabled = false;
+                }, 2000);
+                alert("Failed to save recipe. Please try again.");
             }
         }
 
@@ -316,3 +347,4 @@ document.addEventListener("DOMContentLoaded", () => {
     // Initialize the app
     searchRecipesLink.classList.add("active");
 });
+

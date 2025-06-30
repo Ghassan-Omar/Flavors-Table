@@ -2,16 +2,34 @@ const express = require("express");
 const dotenv = require("dotenv");
 const cors = require("cors");
 const path = require("path");
+const { Pool } = require("pg");
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Database connection pool
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL
+});
+
+// Test database connection
+pool.connect()
+    .then(() => {
+        console.log("Connected to PostgreSQL database");
+    })
+    .catch((err) => {
+        console.error("Could not connect to database:", err);
+    });
+
 // Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
+
+// Make pool available to routes
+app.locals.pool = pool;
 
 // Routes
 const homeRoutes = require("./routes/home");
@@ -59,3 +77,14 @@ app.use((req, res) => {
 app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server is running on port ${PORT}`);
 });
+
+// Graceful shutdown
+process.on('SIGINT', () => {
+    console.log('Shutting down gracefully...');
+    pool.end(() => {
+        console.log('Database pool closed.');
+        process.exit(0);
+    });
+});
+
+
