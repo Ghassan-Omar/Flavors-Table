@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Favorites - Flavor Table</title>
+    <title>Flavor Table - Discover Amazing Recipes</title>
     <link rel="stylesheet" href="/styles.css">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍽️</text></svg>">
 </head>
@@ -12,16 +12,35 @@
         <h1>🍽️ Flavor Table</h1>
         <nav>
             <ul>
-                <li><a href="/">🔍 Search Recipes</a></li>
+                <li><a href="#" id="search-recipes-link" class="active">🔍 Search Recipes</a></li>
                 <li><a href="#" id="random-recipe-link">🎲 Random Recipe</a></li>
-                <li><a href="/favorites.html" class="active">❤️ Favorites</a></li>
+                <li><a href="/favorites.html" id="favorites-link">❤️ Favorites</a></li>
             </ul>
         </nav>
     </header>
 
     <main>
+        <!-- Search Recipes Section -->
+        <section id="search-section">
+            <h2>🔍 Search Recipes by Ingredients</h2>
+            <div class="search-container">
+                <input type="text" id="ingredients-input" placeholder="Enter ingredients (e.g., chicken, rice, tomato)">
+                <button id="search-button">Search Recipes</button>
+            </div>
+            <div id="search-results"></div>
+        </section>
+
+        <!-- Random Recipe Section -->
+        <section id="random-section" style="display:none;">
+            <h2>🎲 Discover Random Recipe</h2>
+            <div style="text-align: center; margin-bottom: 2rem;">
+                <button id="generate-random-button">Generate Random Recipe</button>
+            </div>
+            <div id="random-recipe-display"></div>
+        </section>
+
         <!-- Favorites Section -->
-        <section id="favorites-section">
+        <section id="favorites-section" style="display:none;">
             <h2>❤️ Your Favorite Recipes</h2>
             <div id="favorites-list"></div>
         </section>
@@ -83,7 +102,7 @@
         </div>
     </main>
 
-    <script src="/favorites.js"></script>
+    <script src="/app.js"></script>
 </body>
 </html>
 

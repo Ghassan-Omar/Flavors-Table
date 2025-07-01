@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Favorites - Flavor Table</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍽️</text></svg>">
+</head>
+<body>
+    <header>
+        <h1>🍽️ Flavor Table</h1>
+        <nav>
+            <ul>
+                <li><a href="/">🔍 Search Recipes</a></li>
+                <li><a href="#" id="random-recipe-link">🎲 Random Recipe</a></li>
+                <li><a href="/favorites.html" class="active">❤️ Favorites</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <!-- Favorites Section -->
+        <section id="favorites-section">
+            <h2>❤️ Your Favorite Recipes</h2>
+            <div id="favorites-list"></div>
+        </section>
+
+        <!-- Recipe Details Modal -->
+        <div id="recipe-details-modal" class="modal">
+            <div class="modal-content">
+                <span class="close-button">&times;</span>
+                <h2 id="details-title"></h2>
+                <img id="details-image" src="" alt="Recipe Image">
+                <p><strong>📝 Summary:</strong> <span id="details-summary"></span></p>
+                <p><strong>⏱️ Cooking Time:</strong> <span id="details-cooking-time"></span> minutes</p>
+                <h3>📋 Instructions:</h3>
+                <div id="details-instructions"></div>
+                <h3>🥘 Ingredients:</h3>
+                <ul id="details-ingredients"></ul>
+            </div>
+        </div>
+
+        <!-- Edit Recipe Modal -->
+        <div id="edit-recipe-modal" class="modal">
+            <div class="modal-content">
+                <span class="close-edit-button">&times;</span>
+                <h2>✏️ Edit Recipe</h2>
+                <form id="edit-recipe-form">
+                    <input type="hidden" id="edit-recipe-id">
+                    
+                    <div class="form-group">
+                        <label for="edit-title">Recipe Title:</label>
+                        <input type="text" id="edit-title" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-image">Image URL:</label>
+                        <input type="url" id="edit-image">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-instructions">Instructions:</label>
+                        <textarea id="edit-instructions" rows="6"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-ingredients">Ingredients (one per line):</label>
+                        <textarea id="edit-ingredients" rows="8"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="edit-ready-in">Ready in (minutes):</label>
+                        <input type="number" id="edit-ready-in" min="1">
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="submit">💾 Save Changes</button>
+                        <button type="button" id="cancel-edit-button">❌ Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <script src="/favorites.js"></script>
+</body>
+</html>
+
