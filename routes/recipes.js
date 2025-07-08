@@ -293,10 +293,8 @@ router.get("/:id", async (req, res) => {
             
             if (dbResult.rows.length > 0) {
                 const recipe = dbResult.rows[0];
-                // Parse ingredients JSON back to array
-                if (recipe.ingredients) {
-                    recipe.ingredients = JSON.parse(recipe.ingredients);
-                }
+                // The 'ingredients' column is JSONB, so it's already parsed by the 'pg' driver.
+                // No need to call JSON.parse() here.
                 return res.json(recipe);
             }
         }
@@ -392,4 +390,3 @@ router.get("/:id", async (req, res) => {
 });
 
 module.exports = router;
-
