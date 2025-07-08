@@ -24,6 +24,112 @@ document.addEventListener("DOMContentLoaded", () => {
     const editIngredients = document.getElementById("edit-ingredients");
     const editReadyIn = document.getElementById("edit-ready-in");
 
+    // Authentication Functions
+    function getToken() {
+        return localStorage.getItem("authToken");
+    }
+
+    function getUser() {
+        const user = localStorage.getItem("currentUser");
+        return user ? JSON.parse(user) : null;
+    }
+
+    function removeToken() {
+        localStorage.removeItem("authToken");
+    }
+
+    function removeUser() {
+        localStorage.removeItem("currentUser");
+    }
+
+    function logout() {
+        removeToken();
+        removeUser();
+        window.location.href = "/auth.html";
+    }
+
+    function isAuthenticated() {
+        return !!getToken();
+    }
+
+    // API Helper Functions
+    function getAuthHeaders() {
+        const token = getToken();
+        return token ? { 'Authorization': `Bearer ${token}` } : {};
+    }
+
+    async function makeAuthenticatedRequest(url, options = {}) {
+        const headers = {
+            'Content-Type': 'application/json',
+            ...getAuthHeaders(),
+            ...options.headers
+        };
+
+        const response = await fetch(url, {
+            ...options,
+            headers
+        });
+
+        // Handle token expiration
+        if (response.status === 401) {
+            logout();
+            return null;
+        }
+
+        return response;
+    }
+
+    // Check authentication on page load
+    function checkAuth() {
+        if (!isAuthenticated()) {
+            window.location.href = "/auth.html";
+            return false;
+        }
+        return true;
+    }
+
+    // Update header with user info
+    function updateAuthUI() {
+        const user = getUser();
+        const header = document.querySelector("header");
+        
+        if (user) {
+            // Remove existing auth nav if present
+            const existingAuthNav = header.querySelector(".auth-nav");
+            if (existingAuthNav) {
+                existingAuthNav.remove();
+            }
+
+            const authNav = document.createElement("div");
+            authNav.className = "auth-nav";
+            authNav.style.cssText = `
+                text-align: center;
+                margin-top: 1rem;
+                padding-top: 1rem;
+                border-top: 1px solid rgba(255, 255, 255, 0.2);
+            `;
+            authNav.innerHTML = `
+                <span style="color: rgba(255, 255, 255, 0.8); margin-right: 1rem;">
+                    Welcome, ${user.username}!
+                </span>
+                <button id="logout-button" style="
+                    background: linear-gradient(45deg, #dc3545, #c82333);
+                    color: white;
+                    border: none;
+                    padding: 0.5rem 1rem;
+                    border-radius: 15px;
+                    cursor: pointer;
+                    font-family: 'Poppins', sans-serif;
+                    font-size: 0.9rem;
+                    transition: all 0.3s ease;
+                ">Logout</button>
+            `;
+            
+            authNav.querySelector("#logout-button").addEventListener("click", logout);
+            header.appendChild(authNav);
+        }
+    }
+
     // Utility Functions
     const showLoading = (element, text = "Loading...") => {
         element.innerHTML = `
@@ -52,347 +158,281 @@ document.addEventListener("DOMContentLoaded", () => {
         `;
     };
 
-    const createRecipeCard = (recipe, isFromDatabase = true) => {
+    const createRecipeCard = (recipe) => {
         const recipeCard = document.createElement("div");
         recipeCard.classList.add("recipe-card", "fade-in");
         
-        let ingredientsInfo = "";
-        if (recipe.ingredients && Array.isArray(recipe.ingredients)) {
-            ingredientsInfo = `
-                <p><strong>🥘 Ingredients:</strong> ${recipe.ingredients.slice(0, 3).join(", ")}${recipe.ingredients.length > 3 ? "..." : ""}</p>
-            `;
+        // Handle ingredients display
+        let ingredientsDisplay = "";
+        if (recipe.ingredients) {
+            const ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients : [];
+            ingredientsDisplay = ingredients.slice(0, 3).join(", ");
+            if (ingredients.length > 3) {
+                ingredientsDisplay += "...";
+            }
         }
 
-        let instructionsInfo = "";
+        // Handle instructions display
+        let instructionsDisplay = "";
         if (recipe.instructions) {
-            const shortInstructions = recipe.instructions.length > 150 
+            instructionsDisplay = recipe.instructions.length > 150 
                 ? recipe.instructions.substring(0, 150) + "..." 
                 : recipe.instructions;
-            instructionsInfo = `<p><strong>📋 Instructions:</strong> ${shortInstructions}</p>`;
-        }
-
-        let readyInInfo = "";
-        if (recipe.readyin || recipe.readyInMinutes) {
-            readyInInfo = `<p><strong>⏱️ Ready in:</strong> ${recipe.readyin || recipe.readyInMinutes} minutes</p>`;
         }
 
         recipeCard.innerHTML = `
             <h3>${recipe.title}</h3>
             <img src="${recipe.image || '/placeholder-recipe.jpg'}" alt="${recipe.title}" loading="lazy">
-            ${ingredientsInfo}
-            ${instructionsInfo}
-            ${readyInInfo}
+            ${ingredientsDisplay ? `<p><strong>🥘 Ingredients:</strong> ${ingredientsDisplay}</p>` : ''}
+            ${instructionsDisplay ? `<p><strong>📋 Instructions:</strong> ${instructionsDisplay}</p>` : ''}
+            ${recipe.readyin ? `<p><strong>⏱️ Ready in:</strong> ${recipe.readyin} minutes</p>` : ''}
             <div style="margin-top: 1rem;">
                 <button class="view-details-button" data-id="${recipe.id}">👁️ View Details</button>
-                ${isFromDatabase ? `
-                    <button class="edit-recipe-button" data-id="${recipe.id}">✏️ Edit</button>
-                    <button class="remove-favorite-button" data-id="${recipe.id}">🗑️ Delete</button>
-                ` : `
-                    <button class="save-favorite-button" data-recipe='${JSON.stringify(recipe)}'>❤️ Save to Favorites</button>
-                `}
+                <button class="edit-recipe-button" data-id="${recipe.id}">✏️ Edit</button>
+                <button class="delete-recipe-button" data-id="${recipe.id}">🗑️ Delete</button>
             </div>
         `;
         
         return recipeCard;
     };
 
-    // Load and display favorites from database
-    const displayFavorites = async () => {
+    // Load and Display Favorites
+    const loadFavorites = async () => {
+        if (!checkAuth()) return;
+
         showLoading(favoritesList, "Loading your favorite recipes...");
 
         try {
-            const response = await fetch("/recipes/all");
+            const response = await makeAuthenticatedRequest("/recipes/all");
+            
+            if (!response) return; // Token expired, user redirected
             
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             
-            const favorites = await response.json();
+            const data = await response.json();
+            const favorites = data.recipes || [];
             
             favoritesList.innerHTML = "";
             
             if (favorites.length === 0) {
-                showEmptyState(favoritesList, "❤️ No Favorites Yet", "Start exploring recipes and save your favorites!");
+                showEmptyState(favoritesList, "❤️ No Favorites Yet", "Go back to the main page to search for recipes and save your favorites!");
                 return;
             }
 
             favorites.forEach(recipe => {
-                const favoriteCard = createRecipeCard(recipe, true);
-                favoritesList.appendChild(favoriteCard);
+                const recipeCard = createRecipeCard(recipe);
+                favoritesList.appendChild(recipeCard);
             });
 
         } catch (error) {
             console.error("Error loading favorites:", error);
-            showError(favoritesList, "Failed to load favorite recipes. Please try again.");
+            showError(favoritesList, "Failed to load your favorite recipes. Please try again.");
         }
     };
 
-    // Save recipe to database
-    const saveRecipeToDatabase = async (recipe) => {
+    // Show Recipe Details
+    const showRecipeDetails = async (recipeId) => {
         try {
-            const response = await fetch("/recipes", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    title: recipe.title,
-                    image: recipe.image,
-                    instructions: recipe.instructions,
-                    ingredients: recipe.ingredients,
-                    readyIn: recipe.readyInMinutes || recipe.readyin
-                })
-            });
-
+            const response = await makeAuthenticatedRequest(`/recipes/${recipeId}`);
+            
+            if (!response) return; // Token expired, user redirected
+            
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                throw new Error("Failed to fetch recipe details");
             }
-
-            const savedRecipe = await response.json();
-            return savedRecipe;
+            
+            const recipe = await response.json();
+            
+            // Populate modal with recipe details
+            detailsTitle.textContent = recipe.title;
+            detailsImage.src = recipe.image || '/placeholder-recipe.jpg';
+            detailsImage.alt = recipe.title;
+            detailsSummary.innerHTML = recipe.summary || "No summary available.";
+            detailsCookingTime.textContent = recipe.readyin || recipe.readyInMinutes || "Not specified";
+            detailsInstructions.innerHTML = recipe.instructions || "No instructions available.";
+            
+            // Handle ingredients
+            detailsIngredients.innerHTML = "";
+            let ingredients = [];
+            
+            if (recipe.ingredients) {
+                ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients : [];
+            }
+            
+            if (ingredients.length === 0) {
+                const li = document.createElement("li");
+                li.textContent = "No ingredients listed";
+                detailsIngredients.appendChild(li);
+            } else {
+                ingredients.forEach(ingredient => {
+                    const li = document.createElement("li");
+                    li.textContent = ingredient;
+                    detailsIngredients.appendChild(li);
+                });
+            }
+            
+            // Show modal
+            recipeDetailsModal.style.display = "block";
+            
         } catch (error) {
-            console.error("Error saving recipe:", error);
-            throw error;
+            console.error("Error fetching recipe details:", error);
+            alert("Failed to load recipe details. Please try again.");
         }
     };
 
-    // Update recipe in database
-    const updateRecipeInDatabase = async (id, recipeData) => {
+    // Show Edit Recipe Modal
+    const showEditRecipeModal = async (recipeId) => {
         try {
-            const response = await fetch(`/recipes/${id}`, {
+            const response = await makeAuthenticatedRequest(`/recipes/${recipeId}`);
+            
+            if (!response) return; // Token expired, user redirected
+            
+            if (!response.ok) {
+                throw new Error("Failed to fetch recipe details");
+            }
+            
+            const recipe = await response.json();
+            
+            // Populate edit form
+            editRecipeId.value = recipe.id;
+            editTitle.value = recipe.title;
+            editImage.value = recipe.image || '';
+            editInstructions.value = recipe.instructions || '';
+            editReadyIn.value = recipe.readyin || '';
+            
+            // Handle ingredients
+            let ingredientsText = "";
+            if (recipe.ingredients && Array.isArray(recipe.ingredients)) {
+                ingredientsText = recipe.ingredients.join("\n");
+            }
+            editIngredients.value = ingredientsText;
+            
+            // Show modal
+            editRecipeModal.style.display = "block";
+            
+        } catch (error) {
+            console.error("Error fetching recipe for editing:", error);
+            alert("Failed to load recipe for editing. Please try again.");
+        }
+    };
+
+    // Update Recipe
+    const updateRecipe = async (recipeData) => {
+        try {
+            const response = await makeAuthenticatedRequest(`/recipes/${recipeData.id}`, {
                 method: "PUT",
-                headers: {
-                    "Content-Type": "application/json"
-                },
                 body: JSON.stringify(recipeData)
             });
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+            if (!response) return false; // Token expired, user redirected
+
+            if (response.ok) {
+                return true;
+            } else {
+                const errorData = await response.json();
+                throw new Error(errorData.error || "Failed to update recipe");
             }
 
-            const updatedRecipe = await response.json();
-            return updatedRecipe;
         } catch (error) {
             console.error("Error updating recipe:", error);
-            throw error;
+            alert(`Failed to update recipe: ${error.message}`);
+            return false;
         }
     };
 
-    // Delete recipe from database
-    const deleteRecipeFromDatabase = async (id) => {
+    // Delete Recipe
+    const deleteRecipe = async (recipeId) => {
+        if (!confirm("Are you sure you want to delete this recipe? This action cannot be undone.")) {
+            return;
+        }
+
         try {
-            const response = await fetch(`/recipes/${id}`, {
+            const response = await makeAuthenticatedRequest(`/recipes/${recipeId}`, {
                 method: "DELETE"
             });
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+            if (!response) return; // Token expired, user redirected
+
+            if (response.ok) {
+                // Reload favorites
+                loadFavorites();
+            } else {
+                const errorData = await response.json();
+                throw new Error(errorData.error || "Failed to delete recipe");
             }
 
-            const result = await response.json();
-            return result;
         } catch (error) {
             console.error("Error deleting recipe:", error);
-            throw error;
+            alert(`Failed to delete recipe: ${error.message}`);
         }
     };
 
-    // Event Delegation for Dynamic Buttons
-    document.addEventListener("click", async (e) => {
-        // Save to Favorites (from external APIs)
-        if (e.target.classList.contains("save-favorite-button")) {
-            const recipeData = JSON.parse(e.target.dataset.recipe);
-            
-            try {
-                e.target.innerHTML = "💾 Saving...";
-                e.target.disabled = true;
-                
-                await saveRecipeToDatabase(recipeData);
-                
-                // Visual feedback
-                e.target.innerHTML = "✅ Saved!";
-                e.target.style.background = "linear-gradient(45deg, #28a745, #20c997)";
-                
-                setTimeout(() => {
-                    displayFavorites(); // Refresh the favorites list
-                }, 1000);
-                
-            } catch (error) {
-                e.target.innerHTML = "❌ Failed";
-                e.target.style.background = "linear-gradient(45deg, #dc3545, #c82333)";
-                setTimeout(() => {
-                    e.target.innerHTML = "❤️ Save to Favorites";
-                    e.target.style.background = "";
-                    e.target.disabled = false;
-                }, 2000);
-                alert("Failed to save recipe. Please try again.");
-            }
-        }
-
-        // Remove from Favorites (Delete from database)
-        if (e.target.classList.contains("remove-favorite-button")) {
-            const recipeId = e.target.dataset.id;
-            
-            if (confirm("Are you sure you want to delete this recipe from your favorites?")) {
-                try {
-                    await deleteRecipeFromDatabase(recipeId);
-                    displayFavorites(); // Refresh the favorites list
-                } catch (error) {
-                    alert("Failed to delete recipe. Please try again.");
-                }
-            }
-        }
-
-        // Edit Recipe
-        if (e.target.classList.contains("edit-recipe-button")) {
-            const recipeId = e.target.dataset.id;
-            
-            try {
-                const response = await fetch(`/recipes/${recipeId}`);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
-                const recipe = await response.json();
-
-                // Populate edit form
-                editRecipeId.value = recipe.id;
-                editTitle.value = recipe.title || "";
-                editImage.value = recipe.image || "";
-                editInstructions.value = recipe.instructions || "";
-                editIngredients.value = Array.isArray(recipe.ingredients) ? recipe.ingredients.join("\\n") : "";
-                editReadyIn.value = recipe.readyin || "";
-
-                editRecipeModal.style.display = "block";
-                document.body.style.overflow = "hidden";
-
-            } catch (error) {
-                console.error("Error loading recipe for editing:", error);
-                alert("Failed to load recipe details for editing. Please try again.");
-            }
-        }
-
-        // View Recipe Details
+    // Event Listeners
+    
+    // Event delegation for dynamic buttons
+    favoritesList.addEventListener("click", (e) => {
+        const recipeId = e.target.getAttribute("data-id");
+        
         if (e.target.classList.contains("view-details-button")) {
-            const recipeId = e.target.dataset.id;
-            
-            try {
-                const response = await fetch(`/recipes/${recipeId}`);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
-                const recipe = await response.json();
-
-                detailsTitle.textContent = recipe.title;
-                detailsImage.src = recipe.image || "/placeholder-recipe.jpg";
-                detailsImage.alt = recipe.title;
-                detailsSummary.innerHTML = recipe.summary || "No summary available.";
-                detailsCookingTime.textContent = recipe.readyin || recipe.readyInMinutes || "Not specified";
-                detailsInstructions.innerHTML = recipe.instructions || "No instructions available.";
-
-                detailsIngredients.innerHTML = "";
-                if (recipe.ingredients && Array.isArray(recipe.ingredients)) {
-                    recipe.ingredients.forEach(ingredient => {
-                        const li = document.createElement("li");
-                        li.textContent = ingredient;
-                        detailsIngredients.appendChild(li);
-                    });
-                } else if (recipe.extendedIngredients && recipe.extendedIngredients.length > 0) {
-                    recipe.extendedIngredients.forEach(ingredient => {
-                        const li = document.createElement("li");
-                        li.textContent = ingredient.original;
-                        detailsIngredients.appendChild(li);
-                    });
-                } else {
-                    const li = document.createElement("li");
-                    li.textContent = "No ingredients information available.";
-                    detailsIngredients.appendChild(li);
-                }
-
-                recipeDetailsModal.style.display = "block";
-                document.body.style.overflow = "hidden";
-
-            } catch (error) {
-                console.error("Error fetching recipe details:", error);
-                alert("Failed to load recipe details. Please try again.");
-            }
+            showRecipeDetails(recipeId);
+        } else if (e.target.classList.contains("edit-recipe-button")) {
+            showEditRecipeModal(recipeId);
+        } else if (e.target.classList.contains("delete-recipe-button")) {
+            deleteRecipe(recipeId);
         }
     });
 
-    // Edit Recipe Form Submission
+    // Edit form submission
     editRecipeForm.addEventListener("submit", async (e) => {
         e.preventDefault();
         
-        const recipeId = editRecipeId.value;
-        const ingredientsArray = editIngredients.value.split("\\n").filter(ing => ing.trim() !== "");
+        const formData = new FormData(editRecipeForm);
+        const ingredients = formData.get("ingredients").split("\n").filter(ing => ing.trim() !== "");
         
         const recipeData = {
-            title: editTitle.value.trim(),
-            image: editImage.value.trim(),
-            instructions: editInstructions.value.trim(),
-            ingredients: ingredientsArray,
-            readyIn: editReadyIn.value ? parseInt(editReadyIn.value) : null
+            id: parseInt(formData.get("id")),
+            title: formData.get("title"),
+            image: formData.get("image"),
+            instructions: formData.get("instructions"),
+            ingredients: ingredients,
+            readyIn: formData.get("readyIn") ? parseInt(formData.get("readyIn")) : null
         };
 
-        try {
-            await updateRecipeInDatabase(recipeId, recipeData);
-            
+        const success = await updateRecipe(recipeData);
+        if (success) {
             editRecipeModal.style.display = "none";
-            document.body.style.overflow = "auto";
-            
-            displayFavorites(); // Refresh the favorites list
-            
-        } catch (error) {
-            alert("Failed to update recipe. Please try again.");
+            loadFavorites(); // Reload the favorites list
         }
     });
 
-    // Modal Close Functionality
+    // Modal close functionality
     closeButton.addEventListener("click", () => {
         recipeDetailsModal.style.display = "none";
-        document.body.style.overflow = "auto";
     });
 
     closeEditButton.addEventListener("click", () => {
         editRecipeModal.style.display = "none";
-        document.body.style.overflow = "auto";
     });
 
     cancelEditButton.addEventListener("click", () => {
         editRecipeModal.style.display = "none";
-        document.body.style.overflow = "auto";
     });
 
+    // Close modals when clicking outside
     window.addEventListener("click", (e) => {
         if (e.target === recipeDetailsModal) {
             recipeDetailsModal.style.display = "none";
-            document.body.style.overflow = "auto";
         }
         if (e.target === editRecipeModal) {
             editRecipeModal.style.display = "none";
-            document.body.style.overflow = "auto";
         }
     });
 
-    // Keyboard Navigation
-    document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape") {
-            if (recipeDetailsModal.style.display === "block") {
-                recipeDetailsModal.style.display = "none";
-                document.body.style.overflow = "auto";
-            }
-            if (editRecipeModal.style.display === "block") {
-                editRecipeModal.style.display = "none";
-                document.body.style.overflow = "auto";
-            }
-        }
-    });
-
-    // Initialize the favorites page
-    displayFavorites();
+    // Initialize
+    if (checkAuth()) {
+        updateAuthUI();
+        loadFavorites();
+    }
 });
-

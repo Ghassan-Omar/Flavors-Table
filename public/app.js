@@ -26,6 +26,125 @@ document.addEventListener("DOMContentLoaded", () => {
     const detailsInstructions = document.getElementById("details-instructions");
     const detailsIngredients = document.getElementById("details-ingredients");
 
+    // Authentication Functions
+    function getToken() {
+        return localStorage.getItem("authToken");
+    }
+
+    function getUser() {
+        const user = localStorage.getItem("currentUser");
+        return user ? JSON.parse(user) : null;
+    }
+
+    function removeToken() {
+        localStorage.removeItem("authToken");
+    }
+
+    function removeUser() {
+        localStorage.removeItem("currentUser");
+    }
+
+    function logout() {
+        removeToken();
+        removeUser();
+        updateAuthUI();
+        showSection(searchSection);
+        searchRecipesLink.classList.add("active");
+    }
+
+    function isAuthenticated() {
+        return !!getToken();
+    }
+
+    // API Helper Functions
+    function getAuthHeaders() {
+        const token = getToken();
+        return token ? { 'Authorization': `Bearer ${token}` } : {};
+    }
+
+    async function makeAuthenticatedRequest(url, options = {}) {
+        const headers = {
+            'Content-Type': 'application/json',
+            ...getAuthHeaders(),
+            ...options.headers
+        };
+
+        const response = await fetch(url, {
+            ...options,
+            headers
+        });
+
+        // Handle token expiration
+        if (response.status === 401) {
+            logout();
+            alert("Your session has expired. Please log in again.");
+            window.location.href = "/auth.html";
+            return null;
+        }
+
+        return response;
+    }
+
+    // UI Update Functions
+    function updateAuthUI() {
+        const user = getUser();
+        const header = document.querySelector("header");
+        
+        // Remove existing auth elements
+        const existingAuthNav = header.querySelector(".auth-nav");
+        if (existingAuthNav) {
+            existingAuthNav.remove();
+        }
+
+        // Create auth navigation
+        const authNav = document.createElement("div");
+        authNav.className = "auth-nav";
+        authNav.style.cssText = `
+            text-align: center;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+        `;
+
+        if (user) {
+            authNav.innerHTML = `
+                <span style="color: rgba(255, 255, 255, 0.8); margin-right: 1rem;">
+                    Welcome, ${user.username}!
+                </span>
+                <button id="logout-button" style="
+                    background: linear-gradient(45deg, #dc3545, #c82333);
+                    color: white;
+                    border: none;
+                    padding: 0.5rem 1rem;
+                    border-radius: 15px;
+                    cursor: pointer;
+                    font-family: 'Poppins', sans-serif;
+                    font-size: 0.9rem;
+                    transition: all 0.3s ease;
+                ">Logout</button>
+            `;
+            
+            // Add logout functionality
+            authNav.querySelector("#logout-button").addEventListener("click", logout);
+        } else {
+            authNav.innerHTML = `
+                <a href="/auth.html" style="
+                    background: linear-gradient(45deg, #28a745, #20c997);
+                    color: white;
+                    text-decoration: none;
+                    padding: 0.5rem 1rem;
+                    border-radius: 15px;
+                    font-family: 'Poppins', sans-serif;
+                    font-size: 0.9rem;
+                    transition: all 0.3s ease;
+                    display: inline-block;
+                ">Login / Register</a>
+            `;
+        }
+
+        header.appendChild(authNav);
+    }
+
     // Utility Functions
     const showSection = (sectionToShow) => {
         // Hide all sections
@@ -79,8 +198,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 <p><strong>❌ Missing Ingredients:</strong> ${recipe.missedIngredients.map(ing => ing.name).join(", ")}</p>
             `;
         } else if (recipe.ingredients) {
+            const ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients : [];
             ingredientsInfo = `
-                <p><strong>🥘 Ingredients:</strong> ${recipe.ingredients.slice(0, 3).join(", ")}${recipe.ingredients.length > 3 ? "..." : ""}</p>
+                <p><strong>🥘 Ingredients:</strong> ${ingredients.slice(0, 3).join(", ")}${ingredients.length > 3 ? "..." : ""}</p>
             `;
         }
 
@@ -92,6 +212,9 @@ document.addEventListener("DOMContentLoaded", () => {
             instructionsInfo = `<p><strong>📋 Instructions:</strong> ${shortInstructions}</p>`;
         }
 
+        const saveButtonText = isAuthenticated() ? "❤️ Save to Favorites" : "❤️ Login to Save";
+        const saveButtonDisabled = !isAuthenticated() ? "disabled" : "";
+
         recipeCard.innerHTML = `
             <h3>${recipe.title}</h3>
             <img src="${recipe.image}" alt="${recipe.title}" loading="lazy">
@@ -99,7 +222,10 @@ document.addEventListener("DOMContentLoaded", () => {
             ${instructionsInfo}
             <div style="margin-top: 1rem;">
                 <button class="view-details-button" data-id="${recipe.id}">👁️ View Details</button>
-                ${!isFromFavorites ? `<button class="save-favorite-button" data-id="${recipe.id}" data-title="${recipe.title}" data-image="${recipe.image}">❤️ Save to Favorites</button>` : `<button class="remove-favorite-button" data-id="${recipe.id}">🗑️ Remove</button>`}
+                ${!isFromFavorites ? 
+                    `<button class="save-favorite-button" data-id="${recipe.id}" data-title="${recipe.title}" data-image="${recipe.image}" ${saveButtonDisabled}>${saveButtonText}</button>` : 
+                    `<button class="remove-favorite-button" data-id="${recipe.id}">🗑️ Remove</button>`
+                }
             </div>
         `;
         
@@ -121,7 +247,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     favoritesLink.addEventListener("click", (e) => {
         e.preventDefault();
-        window.location.href = "/favorites.html";
+        if (!isAuthenticated()) {
+            alert("Please log in to view your favorites.");
+            window.location.href = "/auth.html";
+            return;
+        }
+        showSection(favoritesSection);
+        favoritesLink.classList.add("active");
+        displayFavorites();
     });
 
     // Search Recipes Functionality
@@ -193,158 +326,215 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // Favorites Functionality
-    const displayFavorites = () => {
-        let favorites = JSON.parse(localStorage.getItem("favoriteRecipes")) || [];
-        favoritesList.innerHTML = "";
-        
-        if (favorites.length === 0) {
-            showEmptyState(favoritesList, "❤️ No Favorites Yet", "Start exploring recipes and save your favorites!");
+    const displayFavorites = async () => {
+        if (!isAuthenticated()) {
+            showEmptyState(favoritesList, "🔒 Login Required", "Please log in to view your favorite recipes.");
             return;
         }
 
-        favorites.forEach(recipe => {
-            const favoriteCard = createRecipeCard(recipe, false, true);
-            favoritesList.appendChild(favoriteCard);
-        });
+        showLoading(favoritesList, "Loading your favorite recipes...");
+
+        try {
+            const response = await makeAuthenticatedRequest("/recipes/all");
+            
+            if (!response) return; // Token expired, user redirected
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            const favorites = data.recipes || [];
+            
+            favoritesList.innerHTML = "";
+            
+            if (favorites.length === 0) {
+                showEmptyState(favoritesList, "❤️ No Favorites Yet", "Start exploring recipes and save your favorites!");
+                return;
+            }
+
+            favorites.forEach(recipe => {
+                const recipeCard = createRecipeCard(recipe, false, true);
+                favoritesList.appendChild(recipeCard);
+            });
+
+        } catch (error) {
+            console.error("Error fetching favorites:", error);
+            showError(favoritesList, "Failed to load your favorites. Please try again.");
+        }
     };
 
     // Event Delegation for Dynamic Buttons
     document.addEventListener("click", async (e) => {
-        // Save to Favorites
-        if (e.target.classList.contains("save-favorite-button")) {
-            const recipeId = e.target.dataset.id;
-            const recipeTitle = e.target.dataset.title;
-            const recipeImage = e.target.dataset.image;
-            
-            try {
-                e.target.innerHTML = "💾 Saving...";
-                e.target.disabled = true;
-                
-                // Get full recipe details first
-                const response = await fetch(`/recipes/${recipeId}`);
-                if (!response.ok) {
-                    throw new Error(`Failed to fetch recipe details`);
-                }
-                
-                const recipeDetails = await response.json();
-                
-                // Save to database
-                const saveResponse = await fetch("/recipes", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({
-                        title: recipeDetails.title,
-                        image: recipeDetails.image,
-                        instructions: recipeDetails.instructions,
-                        ingredients: recipeDetails.extendedIngredients ? 
-                            recipeDetails.extendedIngredients.map(ing => ing.original) : 
-                            recipeDetails.ingredients || [],
-                        readyIn: recipeDetails.readyInMinutes || recipeDetails.readyin
-                    })
-                });
-                
-                if (!saveResponse.ok) {
-                    throw new Error(`Failed to save recipe`);
-                }
-                
-                // Visual feedback
-                e.target.innerHTML = "✅ Saved!";
-                e.target.style.background = "linear-gradient(45deg, #28a745, #20c997)";
-                setTimeout(() => {
-                    e.target.innerHTML = "❤️ Save to Favorites";
-                    e.target.style.background = "";
-                    e.target.disabled = false;
-                }, 2000);
-                
-            } catch (error) {
-                console.error("Error saving recipe:", error);
-                e.target.innerHTML = "❌ Failed";
-                e.target.style.background = "linear-gradient(45deg, #dc3545, #c82333)";
-                setTimeout(() => {
-                    e.target.innerHTML = "❤️ Save to Favorites";
-                    e.target.style.background = "";
-                    e.target.disabled = false;
-                }, 2000);
-                alert("Failed to save recipe. Please try again.");
-            }
-        }
-
-        // Remove from Favorites
-        if (e.target.classList.contains("remove-favorite-button")) {
-            const recipeId = e.target.dataset.id;
-            let favorites = JSON.parse(localStorage.getItem("favoriteRecipes")) || [];
-            favorites = favorites.filter(fav => fav.id !== recipeId);
-            localStorage.setItem("favoriteRecipes", JSON.stringify(favorites));
-            displayFavorites();
-        }
-
-        // View Recipe Details
+        // View Details Button
         if (e.target.classList.contains("view-details-button")) {
-            const recipeId = e.target.dataset.id;
-            
-            try {
-                const response = await fetch(`/recipes/${recipeId}`);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
-                const recipe = await response.json();
+            const recipeId = e.target.getAttribute("data-id");
+            await showRecipeDetails(recipeId);
+        }
 
-                detailsTitle.textContent = recipe.title;
-                detailsImage.src = recipe.image;
-                detailsImage.alt = recipe.title;
-                detailsSummary.innerHTML = recipe.summary || "No summary available.";
-                detailsCookingTime.textContent = recipe.readyInMinutes || "Not specified";
-                detailsInstructions.innerHTML = recipe.instructions || "No instructions available.";
-
-                detailsIngredients.innerHTML = "";
-                if (recipe.extendedIngredients && recipe.extendedIngredients.length > 0) {
-                    recipe.extendedIngredients.forEach(ingredient => {
-                        const li = document.createElement("li");
-                        li.textContent = ingredient.original;
-                        detailsIngredients.appendChild(li);
-                    });
-                } else {
-                    const li = document.createElement("li");
-                    li.textContent = "No ingredients information available.";
-                    detailsIngredients.appendChild(li);
-                }
-
-                recipeDetailsModal.style.display = "block";
-                document.body.style.overflow = "hidden"; // Prevent background scrolling
-
-            } catch (error) {
-                console.error("Error fetching recipe details:", error);
-                alert("Failed to load recipe details. Please try again.");
+        // Save to Favorites Button
+        if (e.target.classList.contains("save-favorite-button")) {
+            if (!isAuthenticated()) {
+                alert("Please log in to save recipes to favorites.");
+                window.location.href = "/auth.html";
+                return;
             }
+
+            const button = e.target;
+            const recipeId = button.getAttribute("data-id");
+            const title = button.getAttribute("data-title");
+            const image = button.getAttribute("data-image");
+            
+            await saveToFavorites(recipeId, title, image, button);
+        }
+
+        // Remove from Favorites Button
+        if (e.target.classList.contains("remove-favorite-button")) {
+            const recipeId = e.target.getAttribute("data-id");
+            await removeFromFavorites(recipeId);
         }
     });
 
+    // Save to Favorites Function
+    const saveToFavorites = async (recipeId, title, image, button) => {
+        const originalText = button.textContent;
+        button.textContent = "Saving...";
+        button.disabled = true;
+
+        try {
+            // First, get detailed recipe information
+            const detailsResponse = await fetch(`/recipes/${recipeId}`);
+            if (!detailsResponse.ok) {
+                throw new Error("Failed to fetch recipe details");
+            }
+            
+            const recipeDetails = await detailsResponse.json();
+            
+            // Prepare recipe data for saving
+            const recipeData = {
+                title: title,
+                image: image,
+                instructions: recipeDetails.instructions || "",
+                ingredients: recipeDetails.extendedIngredients ? 
+                    recipeDetails.extendedIngredients.map(ing => ing.original) : 
+                    (recipeDetails.ingredients || []),
+                readyIn: recipeDetails.readyInMinutes || recipeDetails.readyIn,
+                spoonacular_id: parseInt(recipeId)
+            };
+
+            const response = await makeAuthenticatedRequest("/recipes", {
+                method: "POST",
+                body: JSON.stringify(recipeData)
+            });
+
+            if (!response) return; // Token expired, user redirected
+
+            if (response.ok) {
+                button.textContent = "✅ Saved!";
+                setTimeout(() => {
+                    button.textContent = "❤️ Saved to Favorites";
+                    button.disabled = true;
+                }, 2000);
+            } else {
+                const errorData = await response.json();
+                throw new Error(errorData.error || "Failed to save recipe");
+            }
+
+        } catch (error) {
+            console.error("Error saving recipe:", error);
+            alert(`Failed to save recipe: ${error.message}`);
+            button.textContent = originalText;
+            button.disabled = false;
+        }
+    };
+
+    // Remove from Favorites Function
+    const removeFromFavorites = async (recipeId) => {
+        if (!confirm("Are you sure you want to remove this recipe from your favorites?")) {
+            return;
+        }
+
+        try {
+            const response = await makeAuthenticatedRequest(`/recipes/${recipeId}`, {
+                method: "DELETE"
+            });
+
+            if (!response) return; // Token expired, user redirected
+
+            if (response.ok) {
+                // Refresh favorites display
+                displayFavorites();
+            } else {
+                const errorData = await response.json();
+                throw new Error(errorData.error || "Failed to remove recipe");
+            }
+
+        } catch (error) {
+            console.error("Error removing recipe:", error);
+            alert(`Failed to remove recipe: ${error.message}`);
+        }
+    };
+
+    // Show Recipe Details Function
+    const showRecipeDetails = async (recipeId) => {
+        try {
+            const response = await fetch(`/recipes/${recipeId}`);
+            
+            if (!response.ok) {
+                throw new Error("Failed to fetch recipe details");
+            }
+            
+            const recipe = await response.json();
+            
+            // Populate modal with recipe details
+            detailsTitle.textContent = recipe.title;
+            detailsImage.src = recipe.image;
+            detailsImage.alt = recipe.title;
+            detailsSummary.innerHTML = recipe.summary || "No summary available.";
+            detailsCookingTime.textContent = recipe.readyInMinutes || recipe.readyIn || "Not specified";
+            detailsInstructions.innerHTML = recipe.instructions || "No instructions available.";
+            
+            // Handle ingredients
+            detailsIngredients.innerHTML = "";
+            let ingredients = [];
+            
+            if (recipe.extendedIngredients) {
+                ingredients = recipe.extendedIngredients.map(ing => ing.original);
+            } else if (recipe.ingredients) {
+                ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients : [];
+            }
+            
+            ingredients.forEach(ingredient => {
+                const li = document.createElement("li");
+                li.textContent = ingredient;
+                detailsIngredients.appendChild(li);
+            });
+            
+            // Show modal
+            recipeDetailsModal.style.display = "block";
+            
+        } catch (error) {
+            console.error("Error fetching recipe details:", error);
+            alert("Failed to load recipe details. Please try again.");
+        }
+    };
+
     // Modal Close Functionality
     closeButton.addEventListener("click", () => {
-        recipeDetailsModal.style.display = "none";
-        document.body.style.overflow = "auto";
+        recipeDetailsModal.style.display = "";
     });
 
     window.addEventListener("click", (e) => {
         if (e.target === recipeDetailsModal) {
-            recipeDetailsModal.style.display = "none";
-            document.body.style.overflow = "auto";
+            recipeDetailsModal.style.display = "block";
         }
     });
 
-    // Keyboard Navigation
-    document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && recipeDetailsModal.style.display === "block") {
-            recipeDetailsModal.style.display = "none";
-            document.body.style.overflow = "auto";
-        }
-    });
-
-    // Initialize the app
-    searchRecipesLink.classList.add("active");
-});
-
+    // Initialize App
+    updateAuthUI();
+    
+    // Check if user came from auth page with success
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('auth') === 'success') {
+        // Remove the parameter from URL
+        window.history.replaceState({}, document.title, window.location.pathname);}})
