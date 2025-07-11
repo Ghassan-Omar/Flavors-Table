@@ -170,6 +170,7 @@ router.get("/search", async (req, res) => {
 router.get("/all", verifyToken, async (req, res) => {
     try {
         const userId = req.user.userId;
+        console.log("Fetching recipes for userId:", userId);
         const pool = req.app.locals.pool;
 
         const result = await pool.query(
@@ -181,6 +182,7 @@ router.get("/all", verifyToken, async (req, res) => {
             recipes: result.rows,
             total: result.rows.length
         });
+        
     } catch (error) {
         console.error("Error fetching user recipes from database:", error);
         res.status(500).json({

@@ -27,7 +27,7 @@
     "crud",
     "api"
   ],
-  "author": "Ghassan Omar",
+  "author": "Flavor Table Team",
   "license": "ISC",
   "engines": {
     "node": ">=16.0.0",
@@ -40,7 +40,7 @@
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "jsonwebtoken": "^9.0.2",
-    "pg": "^8.16.3"
+    "pg": "^8.11.3"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
